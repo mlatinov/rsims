@@ -6,15 +6,15 @@
 \usage{
 simulate_coffee_shops(
   num_shops = 40,
-  baristas = 4,
-  baristas_mean_experiance = 2,
-  baristas_mean_training_hours = 2,
-  shops_baseline_score = 5.5,
-  shops_scores_sigma = 0.5,
-  experiance_effect_on_training_hours = 0.1,
-  experiance_effect_on_ratings = 0.4,
-  traning_hourse_effect_on_ratings = 0.2,
-  ratings_variation = 1
+  baristas_per_shop = 4,
+  mean_experience = 2,
+  mean_training_hours = 2,
+  shop_baseline_score = 5.5,
+  shop_score_sd = 0.5,
+  experience_training_effect = 0.1,
+  experience_rating_effect = 0.4,
+  training_rating_effect = 0.2,
+  rating_sd = 1
 )
 }
 \arguments{
