@@ -1,0 +1,209 @@
+#' Simulate Public Library Book Loan Data
+#'
+#' @description
+#' ## Scenario
+#'
+#' A regional library authority wants to understand which factors influence
+#' the number of books borrowed each week across its libraries.
+#'
+#' For every library and week, you observe:
+#'
+#' * whether local schools are on holiday,
+#' * the total weekly rainfall (millimetres),
+#' * the number of books currently on hold,
+#' * the number of staff working that week, and
+#' * the total number of books loaned.
+#'
+#' School holidays and rainy weather increase demand for books, leading to
+#' more reservations. Libraries with more staff are able to process more loans,
+#' while weeks with many books already on hold generally reflect periods of
+#' higher demand.
+#'
+#' Libraries differ in their baseline borrowing rates because of differences
+#' in community size, collection size, and local reading habits.
+#'
+#' The challenge is to estimate how weather, holidays, staffing, and book
+#' reservations influence the number of weekly book loans while accounting
+#' for differences between libraries.
+#'
+#' ## Causal Structure
+#'
+#' \preformatted{
+#'
+#' School Holiday ───────────────► Books on Hold ───────────► Weekly Loans
+#'        │                               │
+#'        └──────────────────────────────►│
+#'
+#' Rainfall ─────────────────────► Books on Hold ───────────► Weekly Loans
+#'      │                                │
+#'      └───────────────────────────────►│
+#'
+#' Staff Count ─────────────────────────────────────────────► Weekly Loans
+#'
+#' }
+#'
+#' Libraries differ through varying baseline borrowing rates.
+#'
+#' ## Statistical Task
+#'
+#' Estimate the effects of school holidays, rainfall, staff availability, and
+#' book reservations on weekly borrowing while accounting for differences
+#' between libraries. Compare a standard Poisson regression with a
+#' hierarchical Poisson regression using library-specific intercepts.
+#'
+#' ## Data Generating Model
+#'
+#' Books on hold are generated as
+#'
+#' \deqn{
+#' HeldBooks_i
+#' \sim
+#' Poisson(\lambda_i)
+#' }
+#'
+#' where
+#'
+#' \deqn{
+#' \log(\lambda_i)
+#' =
+#' \alpha_H
+#' +
+#' \beta_{Holiday}Holiday_i
+#' +
+#' \beta_{Rain}Rain_i
+#' }
+#'
+#' Weekly book loans are generated as
+#'
+#' \deqn{
+#' Loans_{ij}
+#' \sim
+#' Poisson(\mu_{ij})
+#' }
+#'
+#' where
+#'
+#' \deqn{
+#' \log(\mu_{ij})
+#' =
+#' \alpha_j
+#' +
+#' \beta_{Holiday}Holiday_{ij}
+#' +
+#' \beta_{Rain}Rain_{ij}
+#' +
+#' \beta_{Held}HeldBooks_{ij}
+#' +
+#' \beta_{Staff}Staff_{ij}
+#' }
+#'
+#' with library-specific intercepts
+#'
+#' \deqn{
+#' \alpha_j
+#' \sim
+#' Normal(\alpha_0,\sigma_\alpha)
+#' }
+#'
+#' @param num_libraries Integer. Number of libraries to simulate.
+#'
+#' @param num_weeks Integer. Number of weekly observations generated for each
+#' library.
+#'
+#' @param rain_mm_rate Numeric. Rate parameter of the exponential distribution
+#' used to generate weekly rainfall.
+#'
+#' @param baseline_held_book Numeric. Population-average log expected number of
+#' books on hold before accounting for holidays and rainfall.
+#'
+#' @param staff_count_ranges Numeric vector giving the minimum and maximum
+#' number of staff members working in a library during a week.
+#'
+#' @param h_beta_holiday Numeric. Effect of school holidays on the log expected
+#' number of books on hold.
+#'
+#' @param h_beta_rain Numeric. Effect of rainfall on the log expected number of
+#' books on hold.
+#'
+#' @param mean_book_loans Numeric. Population-average log expected weekly book
+#' loan count.
+#'
+#' @param sigma_book_count Numeric. Standard deviation of the library-specific
+#' baseline log loan rates.
+#'
+#' @param c_beta_holiday Numeric. Direct effect of school holidays on weekly
+#' book loans.
+#'
+#' @param c_beta_rain Numeric. Direct effect of rainfall on weekly book loans.
+#'
+#' @param c_beta_held Numeric. Effect of the number of books on hold on weekly
+#' book loans.
+#'
+#' @param c_beta_staff Numeric. Effect of staff availability on weekly book
+#' loans.
+#'
+#' @return A data frame with one row per library-week containing:
+#'
+#' \describe{
+#'   \item{library_id}{Unique identifier of the library.}
+#'   \item{is_school_holiday}{Indicator for whether local schools are on holiday (0 = no, 1 = yes).}
+#'   \item{rain_mm}{Weekly rainfall (millimetres).}
+#'   \item{held_book}{Number of books currently on hold.}
+#'   \item{staff_count}{Number of staff members working that week.}
+#'   \item{weekly_book_loans}{Total number of books loaned during the week.}
+#' }
+#'
+#' @export
+simulate_libraries <- function(
+  num_libraries = 20,
+  num_weeks     = 52,
+  rain_mm_rate  = 0.08,
+  baseline_held_book = log(8),
+  staff_count_ranges = c(3, 10),
+  h_beta_holiday   = 0.35,
+  h_beta_rain      = 0.015,
+  mean_book_loans  = log(140),
+  sigma_book_count = 0.20,
+  c_beta_holiday = 0.18,
+  c_beta_rain    = 0.005,
+  c_beta_held    = 0.04,
+  c_beta_staff   = 0.06
+){
+
+  # Simulate J diff libraries for each num of weeks we tracked the bool loans 
+  n          <- num_libries * num_weeks
+  library_id <- rep(seq_len(num_libries), each = num_weeks) 
+
+  # Simulate the independent covariates 
+  is_school_holiday <- rbinom(n, size = 1, prob = 0.2)
+  rain_mm           <- rexp(n, rate  = rain_mm_rate)
+  staff_count       <- runif(n, min = staff_count_ranges[1], max = staff_count_ranges[2])
+
+  # Simulate the book being held Dependent on the is it a school holiday and raining 
+  held_book_lambda <- baseline_held_book + h_beta_holiday * is_school_holiday + h_beta_rain * rain_mm
+  held_book        <- rpois(n, lambda = held_book_lambda)
+
+  # Simulate the Book loans Counts 
+  baseline_book_loans <- mean_book_loans + sigma_book_count * rnorm(num_libries, mean = 0, sd = 1)
+
+  # Linear preditor 
+  lambda <- exp(
+    baseline_book_loans[library_id] 
+    + c_beta_holiday * is_school_holiday 
+    + c_beta_rain    * rain_mm 
+    + c_beta_held    * held_book
+    + c_beta_staff   * staff_count
+  ) 
+
+  # Sample from Poisson Distribution 
+  weekly_book_loans <- rpois(n, lambda = lambda)
+
+  # Return the Simulated Data 
+  sim_data <- data.frame(
+    is_school_holiday = is_school_holiday,
+    rain_mm           = rain_mm,
+    held_book         = held_book,
+    staff_count       = staff_count,
+    weekly_book_loans = weekly_book_loans
+  )
+}
