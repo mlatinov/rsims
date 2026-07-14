@@ -38,7 +38,7 @@
 #' )
 #' }
 #'
-#' Ratings are restricted to the interval [0,10].
+#' Ratings are restricted to the interval 0,10 .
 #'
 #' @param num_shops Number of coffee shops.
 #' @param baristas_per_shop Number of baristas per coffee shop.
@@ -65,17 +65,17 @@ simulate_coffee_shops <- function(
   baristas_per_shop = 4,
   mean_experience     = 2,
   mean_training_hours = 2,
-  shop_baseline_score = 5.5,
-  shop_score_sd       = 0.5,
+  shops_baseline_score = 5.5,
+  shops_score_sd       = 0.5,
   experience_training_effect = 0.1,
   experience_rating_effect   = 0.4,
   training_rating_effect     = 0.2,
   rating_sd = 1
 ){
   ## Simulate J number of Coffee Shops each with i number of baristas
-  n           <- num_shops * baristas
+  n           <- num_shops * baristas_per_shop
   shop_id     <- rep(x = 1:num_shops, each = baristas)
-  shops_alpha <- shops_baseline_score + shops_scores_sigma * rnorm(n = num_shops, mean = 0, sd = 0.3)
+  shops_alpha <- shops_baseline_score + shops_score_sd * rnorm(n = num_shops, mean = 0, sd = 0.3)
 
   ## Causal Structure and Covariates Experiance Root
   experience <- pmax(rnorm(n, mean = baristas_mean_experiance, sd = 1), 0)     # Barista Experiance in Years 
@@ -84,7 +84,7 @@ simulate_coffee_shops <- function(
   traning_h <- pmax(rnorm(n, mean = baristas_mean_training_hours + experiance_effect_on_training_hours * experience, sd = 0.2))
 
   # Simulate Ratings from Normal Distribution  
-  mu_ratings <- shops_alpha[shop_id] + experiance_effect_on_ratings * experience + traning_hourse_effect_on_ratings * traning_h
+  mu_ratings <- shops_alpha[shop_id] + experience_training_effect * experience + training_rating_effect * traning_h
   ratings    <- pmin(pmax(rnorm(n = n, mean = mu_ratings, sd = ratings_variation),0),10)
 
   # Return Dataset

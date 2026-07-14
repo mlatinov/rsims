@@ -9,8 +9,8 @@ simulate_coffee_shops(
   baristas_per_shop = 4,
   mean_experience = 2,
   mean_training_hours = 2,
-  shop_baseline_score = 5.5,
-  shop_score_sd = 0.5,
+  shops_baseline_score = 5.5,
+  shops_score_sd = 0.5,
   experience_training_effect = 0.1,
   experience_rating_effect = 0.4,
   training_rating_effect = 0.2,
@@ -26,10 +26,6 @@ simulate_coffee_shops(
 
 \item{mean_training_hours}{Baseline mean training hours.}
 
-\item{shop_baseline_score}{Overall mean coffee shop rating.}
-
-\item{shop_score_sd}{Standard deviation of shop-level effects.}
-
 \item{experience_training_effect}{Effect of experience on assigned training hours.}
 
 \item{experience_rating_effect}{Effect of experience on ratings.}
@@ -37,6 +33,10 @@ simulate_coffee_shops(
 \item{training_rating_effect}{Effect of training hours on ratings.}
 
 \item{rating_sd}{Residual standard deviation of ratings.}
+
+\item{shop_baseline_score}{Overall mean coffee shop rating.}
+
+\item{shop_score_sd}{Standard deviation of shop-level effects.}
 }
 \value{
 A data.frame containing:
@@ -86,5 +86,5 @@ Rating_i \sim Normal(
 )
 }
 
-Ratings are restricted to the interval \link{0,10}.
+Ratings are restricted to the interval 0,10 .
 }
