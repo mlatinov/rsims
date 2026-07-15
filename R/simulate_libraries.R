@@ -171,8 +171,8 @@ simulate_libraries <- function(
 ){
 
   # Simulate J diff libraries for each num of weeks we tracked the bool loans 
-  n          <- num_libries * num_weeks
-  library_id <- rep(seq_len(num_libries), each = num_weeks) 
+  n          <- num_libraries * num_weeks
+  library_id <- rep(seq_len(num_libraries), each = num_weeks) 
 
   # Simulate the independent covariates 
   is_school_holiday <- rbinom(n, size = 1, prob = 0.2)
