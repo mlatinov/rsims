@@ -217,7 +217,7 @@ simulate_schools <- function(
   n_students  <- num_of_student_per_schools
   n_schools   <- num_states * num_districts_per_state * num_schools_per_district
   n_districts <- num_states * num_districts_per_state
-  n <- num_states * num_districts_per_state * num_schools_per_district * num_of_student_per_schools
+  n           <- num_states * num_districts_per_state * num_schools_per_district * num_of_student_per_schools
   
   # per-STUDENT ids 
   school_id   <- rep(seq_len(n_schools),   each = n_students)
@@ -247,7 +247,7 @@ simulate_schools <- function(
       + alpha_schools[school_id]
       + beta_study_h        * study_h
       + beta_class_size     * class_size
-      + beta_ses[state_id] * ses_index
+      + beta_ses[state_id]  * ses_index
     )
   # Sample Test Scores from Normal Distribution 
   test_scores <- pmin(rnorm(n = n, mean = mu_i, sd = test_score_sd), 100)
