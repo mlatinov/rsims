@@ -39,4 +39,3 @@ hospital_effects <- make_random_effects(
 )
 
 }
-\keyword{internal}

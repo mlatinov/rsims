@@ -63,4 +63,3 @@ effects <- make_correlated_effects(
 )
 
 }
-\keyword{internal}

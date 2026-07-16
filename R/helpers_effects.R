@@ -29,7 +29,7 @@
 #'   sd = 2
 #' )
 #'
-#' @keywords internal
+#' @export
 make_random_effects <- function(
   n,
   mean = 0,
@@ -100,7 +100,7 @@ make_random_effects <- function(
 #'   )
 #' )
 #'
-#' @keywords internal
+#' @export 
 make_correlated_effects <- function(
   n,
   means,

@@ -47,7 +47,7 @@
 #'
 #' head(ids)
 #'
-#' @keywords internal
+#' @export
 make_nested_ids <- function(levels){
 
   if(is.null(names(levels))){
@@ -123,7 +123,7 @@ make_nested_ids <- function(levels){
 #'
 #' head(ids)
 #'
-#' @keywords internal
+#' @export
 make_crossed_ids <- function(factors){
 
   if(is.null(names(factors))){

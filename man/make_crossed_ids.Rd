@@ -36,4 +36,3 @@ ids <- make_crossed_ids(
 head(ids)
 
 }
-\keyword{internal}
