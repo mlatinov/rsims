@@ -207,7 +207,7 @@ simulate_solar_farms <- function(
     alpha_j[farm_id] 
       + beta_j[farm_id]  * sun_hours
       + gamma_j[farm_id] * panel_temp 
-      + dust_effect_kw  * dust_index
+      + dust_effect_kw   * dust_index
   )
 
   # Sample from Kw per day from Normal Distribution 
