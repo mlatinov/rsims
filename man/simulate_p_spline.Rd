@@ -13,74 +13,31 @@ simulate_p_spline(
 )
 }
 \arguments{
-\item{x}{Numeric vector containing the predictor values where the spline
-basis is evaluated.}
+\item{x}{Predictor values.}
 
-\item{df}{Number of spline basis functions.}
+\item{df}{Number of basis functions.}
 
-\item{tau}{Random walk step size controlling smoothness.
-Smaller values produce smoother nonlinear effects.}
+\item{tau}{Random-walk step size (smaller = smoother).}
 
-\item{effect_size}{Standard deviation of the generated nonlinear effect
-after rescaling.}
+\item{effect_size}{Target SD of the effect (scales the weights). \code{NULL} to
+leave the raw scale.}
 
-\item{boundary_knots}{Boundary points used for the spline basis construction.
-Defaults to the observed range of \code{x}.}
+\item{boundary_knots}{Boundary knots for the basis; defaults to \code{range(x)}.}
 }
 \value{
-A list containing:
-\describe{
-\item{basis}{The generated B-spline basis matrix \eqn{B}.}
-\item{weights}{The spline coefficients \eqn{w}.}
-\item{fitted}{The evaluated nonlinear function \eqn{f(x)}.}
-}
+List with \code{basis}, \code{weights} (TRUE coefficients), \code{fitted}.
 }
 \description{
-Generates a smooth nonlinear function from a P-spline representation.
-The function first constructs a B-spline basis matrix and then samples
-spline weights using a first-order random walk prior.
+Builds a B-spline basis from \code{x} and samples smooth coefficients via a
+first-order random-walk prior -- i.e. a P-spline. The random walk supplies the
+smoothness penalty; \code{bs()} supplies only the basis.
 
-The generated nonlinear function is:
+\deqn{w_1 = \tau z_1, \quad w_k = w_{k-1} + \tau z_k, \quad z_k \sim N(0,1).}
 
-\deqn{
-f(x_i)=\sum_{k=1}^{K} B_k(x_i)w_k
-}
-
-where \eqn{B_k(x_i)} are fixed spline basis functions and \eqn{w_k}
-are smoothness-controlled spline weights.
-
-The weights are generated using a non-centered random walk:
-
-\deqn{
-w_1=\tau z_1
-}
-
-\deqn{
-w_k=w_{k-1}+\tau z_k
-}
-
-where:
-
-\itemize{
-\item \eqn{z_k \sim Normal(0,1)} are independent random innovations,
-\item \eqn{\tau} controls the smoothness of the generated curve.
-}
-
-Smaller values of \eqn{\tau} create smoother functions, while larger values
-generate more local variation.
-
-The resulting function is rescaled so that its standard deviation matches
-the requested effect size.
+If \code{effect_size} is not \code{NULL}, the WEIGHTS are scaled so \code{sd(fitted)}
+equals it, keeping \code{fitted == B \%*\% weights}.
 }
 \examples{
 x <- seq(0, 10, length.out = 200)
-
-spline <- simulate_p_spline(
-  x,
-  df = 8,
-  tau = 0.2
-)
-
-plot(x, spline$fitted, type = "l")
-
+s <- simulate_p_spline(x, df = 8, tau = 0.2)
 }

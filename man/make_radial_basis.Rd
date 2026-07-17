@@ -4,27 +4,29 @@
 \alias{make_radial_basis}
 \title{Create Gaussian Radial Basis Functions}
 \usage{
-make_radial_basis(x, knots = 8, length_scale = NULL)
+make_radial_basis(x, knots = 8, length_scale = NULL, overlap = 1.5)
 }
 \arguments{
 \item{x}{Numeric predictor.}
 
-\item{knots}{Number of radial basis centres or supplied knot values.}
+\item{knots}{Either the number of evenly-spaced centres, or a vector of centre
+locations.}
 
-\item{length_scale}{Width of Gaussian bumps.}
+\item{length_scale}{Bump width \eqn{\ell}. If \code{NULL}, defaults to
+\verb{overlap * (knot spacing)}, giving adjacent bumps that overlap sensibly.}
+
+\item{overlap}{Multiplier on the knot spacing for the default width (default
+1.5, so bumps overlap rather than sit isolated).}
 }
 \value{
-Matrix containing radial basis columns.
+An \verb{n x n_knots} matrix (always a matrix, even for \code{n = 1}), with
+column names and a \code{knots}/\code{length_scale} attribute for reuse when fitting.
 }
 \description{
-Creates localized Gaussian bump basis functions.
+Localized Gaussian bump basis. Column k is
+\eqn{B_k(x) = \exp(-\tfrac12((x - \kappa_k)/\ell)^2)}.
 }
-\details{
-Each basis column is:
-
-\deqn{
-B_k(x)=exp(-1/2((x-\kappa_k)/l)^2)
-}
-
-where \eqn{\kappa_k} are knot locations.
+\examples{
+x <- runif(200, 0, 10)
+B <- make_radial_basis(x, knots = 8)
 }

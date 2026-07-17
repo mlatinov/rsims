@@ -4,65 +4,42 @@
 \alias{simulate_spline_effect}
 \title{Simulate a Smooth Effect from a Basis Matrix}
 \usage{
-simulate_spline_effect(B, tau = 0.1, amplitude = 5)
+simulate_spline_effect(B, tau = 0.1, amplitude = 5, weights = NULL)
 }
 \arguments{
-\item{B}{Numeric basis matrix. Rows correspond to observations and columns
-correspond to basis functions.}
+\item{B}{Numeric basis matrix (rows = observations, columns = basis funs).}
 
-\item{tau}{Positive random-walk step size controlling smoothness.
-Smaller values produce smoother functions.}
+\item{tau}{Positive random-walk step size (smoothness). Used only when
+\code{weights = NULL}.}
 
-\item{amplitude}{Desired standard deviation of the simulated nonlinear
-effect after rescaling.}
+\item{amplitude}{Target standard deviation of the effect, achieved by scaling
+the weights. Set to \code{NULL} to leave the raw random-walk scale untouched.}
+
+\item{weights}{Optional coefficient vector of length \code{ncol(B)}. If supplied,
+used directly (and still scaled to \code{amplitude} unless \code{amplitude = NULL}).}
 }
 \value{
-A list containing
-\itemize{
-\item \code{basis} — the supplied basis matrix.
-\item \code{weights} — the simulated spline coefficients.
-\item \code{fitted} — the nonlinear effect evaluated for every observation.
-}
+List with \code{basis}, \code{weights} (the TRUE generating coefficients), and
+\code{fitted} (equal to \code{B \%*\% weights}).
 }
 \description{
-Generates a smooth nonlinear function by combining a basis matrix with
-random-walk spline weights.
+Generates a smooth nonlinear effect by combining a basis matrix with spline
+coefficients. By default the coefficients follow a first-order random walk,
+producing a random smooth function; alternatively supply your own \code{weights}
+to reuse a fixed nonlinear function across simulation studies.
 
-This helper is independent of the type of basis used. The basis matrix may
-come from B-splines, P-splines, radial basis functions, polynomial bases,
-truncated power bases, or any other spline construction.
+Random-walk coefficients satisfy
+\deqn{w_1 = \tau z_1, \qquad w_k = w_{k-1} + \tau z_k, \quad z_k \sim N(0,1).}
+The effect is \eqn{f(x) = Bw}.
 
-The spline coefficients follow a first-order random walk
-
-\deqn{
-w_1 = \tau z_1
-}
-
-\deqn{
-w_k = w_{k-1} + \tau z_k,
-\qquad
-z_k \sim Normal(0,1).
-}
-
-After constructing the spline
-
-\deqn{
-f(x)=Bw,
-}
-
-the nonlinear effect is standardized and rescaled to a desired amplitude.
-
-This helper is useful when simulating nonlinear relationships because the
-same weight-generation mechanism can be combined with many different basis
-functions.
+If \code{amplitude} is not \code{NULL}, the \strong{weights are scaled} so that
+\eqn{sd(f) = }\code{amplitude}. Because the weights (not the output) are scaled,
+the returned \code{weights} and \code{fitted} always satisfy \code{fitted == B \%*\% weights},
+so the returned coefficients are the true generating coefficients -- suitable
+for recovery checks.
 }
 \examples{
-x <- sort(runif(200))
-
-B <- splines::bs(x, df = 8)
-
-f <- simulate_spline_effect(B)
-
-plot(x, f$fitted, type = "l")
-
+x <- sort(runif(200)); B <- splines::bs(x, df = 8)
+s <- simulate_spline_effect(B)
+stopifnot(all.equal(as.numeric(B \%*\% s$weights), s$fitted))  # invariant holds
 }

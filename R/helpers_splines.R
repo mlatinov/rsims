@@ -1,368 +1,395 @@
+## ============================================================================
+##  Corrected spline-effect simulation helpers
+##
+##  KEY DESIGN DECISION (applies to every function):
+##  The returned `weights` and `fitted` must satisfy  fitted == B %*% weights
+##  EXACTLY. The old code rescaled `fitted` (f/sd(f)*amplitude) but returned the
+##  UN-scaled weights, so the returned "truth" did not reproduce the output --
+##  fatal for a simulate -> fit -> recover workflow.
+##
+##  FIX: when a target amplitude is requested, we scale the WEIGHTS, then compute
+##  fitted from the scaled weights. Invariant f == B %*% w always holds.
+##
+##  A safe-sd() helper guards the divide-by-zero when a curve is near-constant.
+## ============================================================================
+
+## internal: standard deviation with a floor, never returns 0
+.safe_sd <- function(v) {
+  s <- stats::sd(v)
+  if (!is.finite(s) || s < 1e-8) 1 else s
+}
+
+## internal: build a first-order random-walk vector, non-centered
+##   w[1] = tau*z[1];  w[k] = w[k-1] + tau*z[k]
+.rw1 <- function(K, tau) {
+  z <- stats::rnorm(K)
+  w <- numeric(K)
+  w[1] <- tau * z[1]
+  if (K > 1) for (k in 2:K) w[k] <- w[k - 1] + tau * z[k]
+  w
+}
+
+
 #' Simulate a Smooth Effect from a Basis Matrix
 #'
 #' @description
-#' Generates a smooth nonlinear function by combining a basis matrix with
-#' random-walk spline weights.
+#' Generates a smooth nonlinear effect by combining a basis matrix with spline
+#' coefficients. By default the coefficients follow a first-order random walk,
+#' producing a random smooth function; alternatively supply your own `weights`
+#' to reuse a fixed nonlinear function across simulation studies.
 #'
-#' This helper is independent of the type of basis used. The basis matrix may
-#' come from B-splines, P-splines, radial basis functions, polynomial bases,
-#' truncated power bases, or any other spline construction.
+#' Random-walk coefficients satisfy
+#' \deqn{w_1 = \tau z_1, \qquad w_k = w_{k-1} + \tau z_k, \quad z_k \sim N(0,1).}
+#' The effect is \eqn{f(x) = Bw}.
 #'
-#' The spline coefficients follow a first-order random walk
+#' If `amplitude` is not `NULL`, the **weights are scaled** so that
+#' \eqn{sd(f) = }`amplitude`. Because the weights (not the output) are scaled,
+#' the returned `weights` and `fitted` always satisfy `fitted == B %*% weights`,
+#' so the returned coefficients are the true generating coefficients -- suitable
+#' for recovery checks.
 #'
-#' \deqn{
-#' w_1 = \tau z_1
-#' }
+#' @param B Numeric basis matrix (rows = observations, columns = basis funs).
+#' @param tau Positive random-walk step size (smoothness). Used only when
+#'   `weights = NULL`.
+#' @param amplitude Target standard deviation of the effect, achieved by scaling
+#'   the weights. Set to `NULL` to leave the raw random-walk scale untouched.
+#' @param weights Optional coefficient vector of length `ncol(B)`. If supplied,
+#'   used directly (and still scaled to `amplitude` unless `amplitude = NULL`).
 #'
-#' \deqn{
-#' w_k = w_{k-1} + \tau z_k,
-#' \qquad
-#' z_k \sim Normal(0,1).
-#' }
-#'
-#' After constructing the spline
-#'
-#' \deqn{
-#' f(x)=Bw,
-#' }
-#'
-#' the nonlinear effect is standardized and rescaled to a desired amplitude.
-#'
-#' This helper is useful when simulating nonlinear relationships because the
-#' same weight-generation mechanism can be combined with many different basis
-#' functions.
-#'
-#' @param B Numeric basis matrix. Rows correspond to observations and columns
-#' correspond to basis functions.
-#'
-#' @param tau Positive random-walk step size controlling smoothness.
-#' Smaller values produce smoother functions.
-#'
-#' @param amplitude Desired standard deviation of the simulated nonlinear
-#' effect after rescaling.
-#'
-#' @return
-#' A list containing
-#'
-#' * `basis` — the supplied basis matrix.
-#' * `weights` — the simulated spline coefficients.
-#' * `fitted` — the nonlinear effect evaluated for every observation.
+#' @return List with `basis`, `weights` (the TRUE generating coefficients), and
+#'   `fitted` (equal to `B %*% weights`).
 #'
 #' @examples
-#' x <- sort(runif(200))
-#'
-#' B <- splines::bs(x, df = 8)
-#'
-#' f <- simulate_spline_effect(B)
-#'
-#' plot(x, f$fitted, type = "l")
-#'
+#' x <- sort(runif(200)); B <- splines::bs(x, df = 8)
+#' s <- simulate_spline_effect(B)
+#' stopifnot(all.equal(as.numeric(B %*% s$weights), s$fitted))  # invariant holds
 #' @export
 simulate_spline_effect <- function(
     B,
-    tau = 0.10,
-    amplitude = 5
+    tau       = 0.10,
+    amplitude = 5,
+    weights   = NULL
 ){
-
   K <- ncol(B)
-  z <- rnorm(K)
-  w <- numeric(K)
-  w[1] <- tau * z[1]
 
-  if(K > 1){
-    for(i in 2:K){
-      w[i] <- w[i - 1] + tau * z[i]
-    }
+  if (is.null(weights)) {
+    w <- .rw1(K, tau)
+  } else {
+    if (length(weights) != K)
+      stop("'weights' must have length equal to ncol(B).", call. = FALSE)
+    w <- as.numeric(weights)
+  }
+
+  ## scale the WEIGHTS (not the output) so the invariant f == B %*% w holds
+  if (!is.null(amplitude)) {
+    f0 <- as.numeric(B %*% w)
+    w  <- w * (amplitude / .safe_sd(f0))
   }
 
   f <- as.numeric(B %*% w)
-  f <- f / sd(f) * amplitude
+
+  list(basis = B, weights = w, fitted = f)
+}
+
+
+#' Simulate Hierarchical Smooth Effects from a Basis Matrix
+#'
+#' @description
+#' Generates group-specific nonlinear functions that share a common basis and a
+#' shared population mean curve, with group-specific deviations around it.
+#'
+#' The population curve follows a first-order random walk (or is supplied via
+#' `weights`):
+#' \deqn{\bar w_1 = \tau z_1, \quad \bar w_k = \bar w_{k-1} + \tau z_k.}
+#'
+#' Group coefficients are \eqn{w_{jk} = \bar w_k + \delta_{jk}}, where the
+#' deviations \eqn{\delta_{jk}} are controlled by `deviation`:
+#' \itemize{
+#'   \item `"iid"` (default): \eqn{\delta_{jk} \sim N(0, \sigma_{group})} --
+#'     independent across basis functions (each group's deviation is NOT itself
+#'     smooth; the group curve is the smooth mean plus rough wiggle).
+#'   \item `"rw"` (the refinement): each group's deviation is itself a
+#'     first-order random walk anchored at zero,
+#'     \eqn{\delta_{j1} = 0,\ \delta_{jk} = \delta_{j,k-1} + \sigma_{group} z_{jk}},
+#'     so each group's curve is smooth in its own right. The anchor at 0 keeps the
+#'     population curve owning the overall level (identifiability).
+#' }
+#'
+#' If `amplitude` is not `NULL`, a SINGLE common scale factor (derived from the
+#' population curve) is applied to the population weights and all group weights,
+#' so the group curves still scatter correctly around the population curve. The
+#' invariant `fitted[i] == B[i,] %*% group_weights[group_i,]` is preserved.
+#'
+#' @param B Numeric basis matrix (rows = observations, columns = basis funs).
+#' @param group Vector of group memberships, one per row of `B`.
+#' @param weights Optional population coefficients (length `ncol(B)`). If `NULL`,
+#'   generated by a random walk.
+#' @param tau Random-walk step size for the population curve.
+#' @param sigma_group SD of the group deviations.
+#' @param deviation Either `"iid"` (rough deviations) or `"rw"` (smooth
+#'   deviations; the refinement).
+#' @param amplitude Target SD for the population curve, applied as a common scale
+#'   to all weights. `NULL` leaves the raw scale.
+#'
+#' @return List with `basis`, `population_weights`, `group_weights`
+#'   (J x K matrix of TRUE group coefficients), `population_curve`, and `fitted`.
+#'   `fitted` equals the row-wise `B %*% group_weights[group,]`.
+#'
+#' @examples
+#' x <- sort(runif(400)); group <- rep(1:4, each = 100)
+#' B <- splines::bs(x, df = 8)
+#' f <- simulate_hierarchical_spline_effect(B, group, deviation = "rw")
+#' @export
+simulate_hierarchical_spline_effect <- function(
+    B,
+    group,
+    weights     = NULL,
+    tau         = 0.15,
+    sigma_group = 0.5,
+    deviation   = c("iid", "rw"),
+    amplitude   = 5
+){
+  deviation <- match.arg(deviation)
+  K <- ncol(B)
+  groups <- sort(unique(group))
+  J <- length(groups)
+
+  ## population weights
+  if (is.null(weights)) {
+    w_bar <- .rw1(K, tau)
+  } else {
+    if (length(weights) != K)
+      stop("'weights' must have length equal to ncol(B).", call. = FALSE)
+    w_bar <- as.numeric(weights)
+  }
+
+  ## group weights = population + deviation
+  W <- matrix(NA_real_, nrow = J, ncol = K)
+  for (j in seq_len(J)) {
+    if (deviation == "iid") {
+      delta <- stats::rnorm(K, sd = sigma_group)         # rough, independent
+    } else {                                             # "rw": smooth, anchored at 0
+      delta <- numeric(K)                                 # delta[1] = 0 (anchor)
+      z <- stats::rnorm(K)
+      if (K > 1) for (k in 2:K) delta[k] <- delta[k - 1] + sigma_group * z[k]
+    }
+    W[j, ] <- w_bar + delta
+  }
+
+  ## ONE common scale (from the population curve), applied to ALL weights,
+  ## so group curves keep their correct scatter around the population curve.
+  if (!is.null(amplitude)) {
+    pop0  <- as.numeric(B %*% w_bar)
+    scale <- amplitude / .safe_sd(pop0)
+    w_bar <- w_bar * scale
+    W     <- W * scale
+  }
+
+  ## evaluate
+  population_curve <- as.numeric(B %*% w_bar)
+  fitted <- numeric(nrow(B))
+  for (j in seq_len(J)) {
+    idx <- group == groups[j]
+    fitted[idx] <- B[idx, , drop = FALSE] %*% W[j, ]
+  }
 
   list(
-    basis   = B,
-    weights = w,
-    fitted  = f
+    basis              = B,
+    population_weights = w_bar,
+    group_weights      = W,
+    population_curve   = population_curve,
+    fitted             = fitted
   )
 }
+
+
 #' Simulate a Nonlinear Effect Using a P-Spline
 #'
 #' @description
-#' Generates a smooth nonlinear function from a P-spline representation.
-#' The function first constructs a B-spline basis matrix and then samples
-#' spline weights using a first-order random walk prior.
+#' Builds a B-spline basis from `x` and samples smooth coefficients via a
+#' first-order random-walk prior -- i.e. a P-spline. The random walk supplies the
+#' smoothness penalty; `bs()` supplies only the basis.
 #'
-#' The generated nonlinear function is:
+#' \deqn{w_1 = \tau z_1, \quad w_k = w_{k-1} + \tau z_k, \quad z_k \sim N(0,1).}
 #'
-#' \deqn{
-#' f(x_i)=\sum_{k=1}^{K} B_k(x_i)w_k
-#' }
+#' If `effect_size` is not `NULL`, the WEIGHTS are scaled so `sd(fitted)`
+#' equals it, keeping `fitted == B %*% weights`.
 #'
-#' where \eqn{B_k(x_i)} are fixed spline basis functions and \eqn{w_k}
-#' are smoothness-controlled spline weights.
+#' @param x Predictor values.
+#' @param df Number of basis functions.
+#' @param tau Random-walk step size (smaller = smoother).
+#' @param effect_size Target SD of the effect (scales the weights). `NULL` to
+#'   leave the raw scale.
+#' @param boundary_knots Boundary knots for the basis; defaults to `range(x)`.
 #'
-#' The weights are generated using a non-centered random walk:
-#'
-#' \deqn{
-#' w_1=\tau z_1
-#' }
-#'
-#' \deqn{
-#' w_k=w_{k-1}+\tau z_k
-#' }
-#'
-#' where:
-#'
-#' \itemize{
-#'   \item \eqn{z_k \sim Normal(0,1)} are independent random innovations,
-#'   \item \eqn{\tau} controls the smoothness of the generated curve.
-#' }
-#'
-#' Smaller values of \eqn{\tau} create smoother functions, while larger values
-#' generate more local variation.
-#'
-#' The resulting function is rescaled so that its standard deviation matches
-#' the requested effect size.
-#'
-#' @param x Numeric vector containing the predictor values where the spline
-#' basis is evaluated.
-#'
-#' @param df Number of spline basis functions.
-#'
-#' @param tau Random walk step size controlling smoothness.
-#' Smaller values produce smoother nonlinear effects.
-#'
-#' @param effect_size Standard deviation of the generated nonlinear effect
-#' after rescaling.
-#'
-#' @param boundary_knots Boundary points used for the spline basis construction.
-#' Defaults to the observed range of \code{x}.
-#'
-#' @return
-#' A list containing:
-#' \describe{
-#'   \item{basis}{The generated B-spline basis matrix \eqn{B}.}
-#'   \item{weights}{The spline coefficients \eqn{w}.}
-#'   \item{fitted}{The evaluated nonlinear function \eqn{f(x)}.}
-#' }
+#' @return List with `basis`, `weights` (TRUE coefficients), `fitted`.
 #'
 #' @examples
 #' x <- seq(0, 10, length.out = 200)
-#'
-#' spline <- simulate_p_spline(
-#'   x,
-#'   df = 8,
-#'   tau = 0.2
-#' )
-#'
-#' plot(x, spline$fitted, type = "l")
-#'
+#' s <- simulate_p_spline(x, df = 8, tau = 0.2)
 #' @export
 simulate_p_spline <- function(
     x,
-    df = 8,
-    tau = 0.2,
-    effect_size = 1,
+    df             = 8,
+    tau            = 0.2,
+    effect_size    = 1,
     boundary_knots = range(x)
 ){
-
-  # Create P-spline basis matrix
-  B <- splines::bs(
-    x,
-    df = df,
-    intercept = TRUE,
-    Boundary.knots = boundary_knots
-  )
-
+  B <- splines::bs(x, df = df, intercept = TRUE, Boundary.knots = boundary_knots)
   K <- ncol(B)
 
-  # Random walk spline prior
-  z <- rnorm(K)
-  w <- numeric(K)
-  w[1] <- tau * z[1]
-  for(i in 2:K){
-    w[i] <- w[i-1] + tau*z[i]
+  w <- .rw1(K, tau)
+
+  if (!is.null(effect_size)) {
+    f0 <- as.numeric(B %*% w)
+    w  <- w * (effect_size / .safe_sd(f0))
   }
 
-  # Nonlinear function
-  f <- as.vector(B %*% w)
-
-  # Control effect magnitude
-  f <- f / sd(f) * effect_size
-
-  # Return a list with the fitted values and the parameters 
-  list(
-    basis = B,
-    weights = w,
-    fitted = f
-  )
+  f <- as.numeric(B %*% w)
+  list(basis = B, weights = w, fitted = f)
 }
 
-#' Simulate Group-Specific Random Effect P-Splines
+
+#' Simulate Group-Specific P-Splines (independent OR hierarchical)
 #'
 #' @description
-#' Generates nonlinear functions that vary across groups using a hierarchical
-#' P-spline structure.
+#' Generates a smooth nonlinear function per group over a shared B-spline basis.
 #'
-#' Each group receives its own spline coefficients, allowing each group to have
-#' a different smooth relationship between the predictor and the outcome.
-#'
-#' The model structure is:
-#'
-#' \deqn{
-#' f_j(x_i)=\sum_{k=1}^{K}B_k(x_i)w_{jk}
+#' \strong{Important:} the original version of this function drew a fresh,
+#' independent random walk per group with \emph{no shared population curve} -- so
+#' groups were NOT pooled and it was not hierarchical despite the name. This
+#' version makes the behaviour explicit via `pool`:
+#' \itemize{
+#'   \item `pool = FALSE` (the old behaviour): each group is an INDEPENDENT smooth
+#'     random walk. No population mean, no shrinkage.
+#'   \item `pool = TRUE` (default): a shared population random walk `w_bar` is
+#'     drawn first, and each group deviates around it by `sigma_group` (a genuine
+#'     hierarchical structure).
 #' }
 #'
-#' where \eqn{j} indexes groups and \eqn{k} indexes spline basis functions.
+#' When `pool = TRUE`, group weights are \eqn{w_{jk} = \bar w_k + \delta_{jk}}
+#' with `deviation` controlling whether the deviations are `"iid"` (rough) or
+#' `"rw"` (smooth, anchored at 0), exactly as in
+#' `simulate_hierarchical_spline_effect`.
 #'
-#' The group-specific spline weights follow a random walk:
+#' @param x Predictor values.
+#' @param group Group membership per observation.
+#' @param df Number of basis functions.
+#' @param tau Random-walk step size.
+#' @param sigma_group SD of group deviations (used only when `pool = TRUE`).
+#' @param pool Logical; `TRUE` for hierarchical (shared mean + deviations),
+#'   `FALSE` for independent per-group walks.
+#' @param deviation `"iid"` or `"rw"` (used only when `pool = TRUE`).
+#' @param effect_size Target SD applied as a common scale. `NULL` to leave raw.
 #'
-#' \deqn{
-#' w_{j1}=\tau z_{j1}
-#' }
-#'
-#' \deqn{
-#' w_{jk}=w_{j,k-1}+\tau z_{jk}
-#' }
-#'
-#' with:
-#'
-#' \deqn{
-#' z_{jk}\sim Normal(0,1)
-#' }
-#'
-#' This creates partially pooled-like nonlinear effects where all groups share
-#' the same spline basis but have their own smooth deviations.
-#'
-#' The resulting functions can be used to simulate varying nonlinear effects
-#' in hierarchical models.
-#'
-#' @param x Numeric vector containing predictor values.
-#'
-#' @param group Vector defining the group membership for each observation.
-#'
-#' @param df Number of spline basis functions.
-#'
-#' @param tau Random walk step size controlling smoothness of group curves.
-#'
-#' @param effect_size Standard deviation of the nonlinear effect after scaling.
-#'
-#' @return
-#' A list containing:
-#'
-#' \describe{
-#'   \item{basis}{The shared spline basis matrix \eqn{B}.}
-#'   \item{weights}{Matrix containing group-specific spline weights.}
-#'   \item{fitted}{The generated nonlinear effect for each observation.}
-#' }
+#' @return List with `basis`, `population_weights` (or `NULL` if unpooled),
+#'   `group_weights` (J x K), and `fitted`.
 #'
 #' @examples
-#'
-#' x <- runif(300, 0, 100)
-#' group <- rep(1:10, each = 30)
-#'
-#' spline <- simulate_random_p_spline(
-#'   x,
-#'   group,
-#'   df = 8
-#' )
-#'
-#' plot(x, spline$fitted)
-#'
+#' x <- runif(300, 0, 100); group <- rep(1:10, each = 30)
+#' s <- simulate_group_p_spline(x, group, df = 8, pool = TRUE)
 #' @export
-simulate_random_p_spline <- function(
+simulate_group_p_spline <- function(
     x,
     group,
-    df = 8,
-    tau = 0.2,
+    df          = 8,
+    tau         = 0.2,
+    sigma_group = 0.5,
+    pool        = TRUE,
+    deviation   = c("iid", "rw"),
     effect_size = 1
 ){
-
-  # Basis matrix shared across groups
+  deviation <- match.arg(deviation)
   B <- splines::bs(x, df = df, intercept = TRUE)
-  K        <- ncol(B)
-  groups   <- unique(group)
-  n_groups <- length(groups)
+  K <- ncol(B)
+  groups <- sort(unique(group))
+  J <- length(groups)
 
-  # Storage for group spline values
-  f <- numeric(length(x))
+  W <- matrix(NA_real_, nrow = J, ncol = K)
+  w_bar <- NULL
 
-  # Storage for weights
-  W <- matrix(0, nrow = n_groups, ncol = K)
-
-  for(j in seq_along(groups)){
-
-    # Random walk weights
-    z <- rnorm(K)
-    w <- numeric(K)
-    w[1] <- tau*z[1]
-
-    for(k in 2:K){
-      w[k] <- w[k-1]+tau*z[k]
+  if (pool) {
+    w_bar <- .rw1(K, tau)                                  # shared population curve
+    for (j in seq_len(J)) {
+      if (deviation == "iid") {
+        delta <- stats::rnorm(K, sd = sigma_group)
+      } else {
+        delta <- numeric(K)                                # anchored at 0
+        z <- stats::rnorm(K)
+        if (K > 1) for (k in 2:K) delta[k] <- delta[k - 1] + sigma_group * z[k]
+      }
+      W[j, ] <- w_bar + delta
     }
-
-    # save weights
-    W[j,] <- w
-
-    # evaluate spline for this group
-    idx <- which(group == groups[j])
-    f[idx] <- B[idx,] %*% w
-
+  } else {
+    for (j in seq_len(J)) W[j, ] <- .rw1(K, tau)           # independent per group
   }
-  # standardize nonlinear effect
-  f <- f / sd(f) * effect_size
 
-  # Return a list with fitted values and paramters 
-  list(
-    basis   = B,
-    weights = W,
-    fitted  = f
-  )
+  ## common scale
+  if (!is.null(effect_size)) {
+    ref   <- if (pool) as.numeric(B %*% w_bar) else as.numeric(B %*% W[1, ])
+    scale <- effect_size / .safe_sd(ref)
+    W     <- W * scale
+    if (pool) w_bar <- w_bar * scale
+  }
+
+  ## evaluate
+  f <- numeric(length(x))
+  for (j in seq_len(J)) {
+    idx <- which(group == groups[j])
+    f[idx] <- B[idx, , drop = FALSE] %*% W[j, ]
+  }
+
+  list(basis = B, population_weights = w_bar, group_weights = W, fitted = f)
 }
+
 
 #' Create Gaussian Radial Basis Functions
 #'
-#' Creates localized Gaussian bump basis functions.
-#'
-#' Each basis column is:
-#'
-#' \deqn{
-#' B_k(x)=exp(-1/2((x-\kappa_k)/l)^2)
-#' }
-#'
-#' where \eqn{\kappa_k} are knot locations.
+#' @description
+#' Localized Gaussian bump basis. Column k is
+#' \eqn{B_k(x) = \exp(-\tfrac12((x - \kappa_k)/\ell)^2)}.
 #'
 #' @param x Numeric predictor.
-#' @param knots Number of radial basis centres or supplied knot values.
-#' @param length_scale Width of Gaussian bumps.
+#' @param knots Either the number of evenly-spaced centres, or a vector of centre
+#'   locations.
+#' @param length_scale Bump width \eqn{\ell}. If `NULL`, defaults to
+#'   `overlap * (knot spacing)`, giving adjacent bumps that overlap sensibly.
+#' @param overlap Multiplier on the knot spacing for the default width (default
+#'   1.5, so bumps overlap rather than sit isolated).
 #'
-#' @return Matrix containing radial basis columns.
+#' @return An `n x n_knots` matrix (always a matrix, even for `n = 1`), with
+#'   column names and a `knots`/`length_scale` attribute for reuse when fitting.
 #'
+#' @examples
+#' x <- runif(200, 0, 10)
+#' B <- make_radial_basis(x, knots = 8)
 #' @export
 make_radial_basis <- function(
     x,
-    knots = 8,
-    length_scale = NULL
+    knots        = 8,
+    length_scale = NULL,
+    overlap      = 1.5
 ){
+  if (length(knots) == 1) {
+    knots <- seq(min(x), max(x), length.out = knots)
+  }
+  n_knots <- length(knots)
 
-  if(length(knots)==1){
-    knots <- seq(
-      min(x),
-      max(x),
-      length.out = knots
-    )
+  if (is.null(length_scale)) {
+    spacing <- if (n_knots > 1) mean(diff(sort(knots))) else diff(range(x))
+    length_scale <- overlap * spacing
   }
 
-  if(is.null(length_scale)){
-    length_scale <- diff(range(x))/length(knots)
-  }
-
-  B <- sapply(
+  ## build columns; force a matrix even when length(x) == 1
+  B <- vapply(
     knots,
-    function(kappa){
-      exp(-0.5*((x-kappa)/length_scale)^2)
-    }
+    function(kappa) exp(-0.5 * ((x - kappa) / length_scale)^2),
+    numeric(length(x))
   )
-  colnames(B) <- paste0("rbf_",seq_along(knots))
+  B <- matrix(B, nrow = length(x), ncol = n_knots)
+  colnames(B) <- paste0("rbf_", seq_len(n_knots))
 
-  return(B)
+  attr(B, "knots")        <- knots
+  attr(B, "length_scale") <- length_scale
+  B
 }
