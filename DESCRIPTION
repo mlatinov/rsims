@@ -2,7 +2,11 @@ Package: rsims
 Title: Simulation Helpers and Statistical Simulation Datasets
 Version: 0.0.0.9000
 Authors@R:
-    person("Metodi", "Latinov", role = c("aut", "cre"))
+    person(
+      given = "Metodi",
+      family = "Latinov",
+      email = "metodilatinov@abv.bg",
+      role = c("aut", "cre"))
 Description: Tools for simulating statistical datasets and building simulation
     studies. Includes helper functions for hierarchical data generation,
     random effects, latent variable models, spline effects, state-space
