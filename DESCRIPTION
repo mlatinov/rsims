@@ -1,11 +1,14 @@
 Package: rsims
-Title: What the Package Does (One Line, Title Case)
+Title: Simulation Helpers and Statistical Simulation Datasets
 Version: 0.0.0.9000
-Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+Authors@R:
+    person("Metodi", "Latinov", role = c("aut", "cre"))
+Description: Tools for simulating statistical datasets and building simulation
+    studies. Includes helper functions for hierarchical data generation,
+    random effects, latent variable models, spline effects, state-space
+    processes, and a growing collection of ready-to-use simulation datasets
+    for testing statistical models.
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 8.0.0
