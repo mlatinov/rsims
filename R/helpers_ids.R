@@ -51,27 +51,23 @@
 make_nested_ids <- function(levels){
 
   if(is.null(names(levels))){
-    stop("levels must be a named vector or list.")
+    stop("levels must be named.")
   }
-
-  levels <- as.list(levels)
 
   n <- prod(unlist(levels))
 
-  ids <- data.frame(
-    row_id = seq_len(n)
-  )
+  ids <- data.frame(row_id = seq_len(n))
 
-  total_levels <- length(levels)
+  level_names <- names(levels)
 
-  for(i in seq_len(total_levels)){
+  for(i in seq_along(levels)){
 
-    current_level <- names(levels)[i]
+    current_level <- level_names[i]
 
-    repeat_times <- prod(unlist(levels[(i + 1):total_levels]))
-
-    if(is.na(repeat_times)){
+    if(i == length(levels)){
       repeat_times <- 1
+    } else {
+      repeat_times <- prod(unlist(levels[(i+1):length(levels)]))
     }
 
     values <- rep(
@@ -79,12 +75,8 @@ make_nested_ids <- function(levels){
       each = repeat_times
     )
 
-    values <- rep(
-      values,
-      length.out = n
-    )
-
     ids[[paste0(current_level, "_id")]] <- values
+
   }
 
   ids$row_id <- NULL
