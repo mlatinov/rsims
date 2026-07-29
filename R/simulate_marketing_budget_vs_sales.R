@@ -16,7 +16,7 @@ simulate_marketing_budget_vs_sales <- function(
   sales_sd            = 3
 ){
   # Simulate J number of regions each with N number of weekly sales
-  ids <- make_nested_ids(levels = list(region = num_regions, num_weeks_for_each_region = num_weeks_for_each_region))
+  ids <- make_nested_ids(levels = list(region = num_regions, week = num_weeks_for_each_region))
   
   # Simulate the Covariates Holiday indicator, Competion Density, Budget Spending 
   is_holiday        <- rbinom(n = nrow(ids), size = 1, prob = prob_holiday_week) 
@@ -41,7 +41,8 @@ simulate_marketing_budget_vs_sales <- function(
 
   # Combine in one dataset 
   sim_data <- data.frame(
-    region_id  = region,
+    region_id  = ids$region,
+    week_id    = idx$week_id,
     competion_density = competion_density,
     is_holiday        = is_holiday,
     budget            = budget,

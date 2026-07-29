@@ -111,6 +111,7 @@ simulate_production_speed_vs_defects <- function(
   # Combine in one dataframe 
   sim_data <- data.frame(
     factory_id = idx$factory_id,
+    shift_id   = idx$shift_id,
     speed      = speed,
     defects_count = defects_count
   )

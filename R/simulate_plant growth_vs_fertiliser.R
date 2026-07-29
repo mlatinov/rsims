@@ -130,6 +130,7 @@ simulate_plant_growth_vs_fertiliser <- function(
   # Combine in one dataset 
   sim_data <- data.frame(
     soil_type_id  = idx$soil_type_id,
+    plot_id       = idx$plots_id,
     fertiliser    = fertiliser,
     plant_biomass = biomass 
   )

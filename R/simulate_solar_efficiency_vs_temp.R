@@ -148,7 +148,7 @@ simulate_solar_efficiency_vs_temperature <- function(
 ){
 
   # Simulate the solar intallations and the days 
-  idx <- make_nested_ids(levels = list(instalations = num_installations, num_days = 10))
+  idx <- make_nested_ids(levels = list(instalations = num_installations, day = num_days))
 
   # Simulate Diffrent Temperatures and Dust Index
   temperature <- rnorm(n = nrow(idx), mean = mean_temperature, sd = sd_temperature)
@@ -188,6 +188,7 @@ simulate_solar_efficiency_vs_temperature <- function(
   # Combine in one Dataframe
   sim_data <- data.frame(
     instalations_id = idx$instalations_id,
+    day_id          = idx$day_id,
     dust_index      = dust_index,
     temperature     = temperature,
     efficiency      = efficiency
