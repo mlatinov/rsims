@@ -1,6 +1,6 @@
 Package: rsims
 Title: Simulation Helpers and Statistical Simulation Datasets
-Version: 0.0.0.9000
+Version: 0.1.0
 Authors@R:
     person(
       given = "Metodi",
@@ -12,6 +12,8 @@ Description: Tools for simulating statistical datasets and building simulation
     random effects, latent variable models, spline effects, state-space
     processes, and a growing collection of ready-to-use simulation datasets
     for testing statistical models.
+Imports:
+    MASS
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
