@@ -176,11 +176,11 @@ simulate_libraries <- function(
 
   # Simulate the independent covariates 
   is_school_holiday <- rbinom(n, size = 1, prob = 0.2)
-  rain_mm           <- rexp(n, rate  = rain_mm_rate)
+  rain_mm           <- pmin(rexp(n, rate  = rain_mm_rate), 100)
   staff_count       <- runif(n, min = staff_count_ranges[1], max = staff_count_ranges[2])
 
   # Simulate the book being held Dependent on the is it a school holiday and raining 
-  held_book_lambda <- baseline_held_book + h_beta_holiday * is_school_holiday + h_beta_rain * rain_mm
+  held_book_lambda <- exp(baseline_held_book + h_beta_holiday * is_school_holiday + h_beta_rain * rain_mm)
   held_book        <- rpois(n, lambda = held_book_lambda)
 
   # Simulate the Book loans Counts 
