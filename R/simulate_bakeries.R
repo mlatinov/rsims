@@ -159,8 +159,9 @@ simulate_bakeries <- function(
   is_weekend     <- rbinom(n, size = 1, prob = prob_weekend)
 
   # The foot Trafic is partially caused by bolth if is a weekend and the outside temperature
-  foot_traffic <- mean_foot_trafic + weekend_effect_traffic * is_weekend + temperature_effect_traffic * temperature_c 
-
+  mu_foot_traffic <- mean_foot_trafic + weekend_effect_traffic * is_weekend + temperature_effect_traffic * temperature_c 
+  foot_traffic <- rnorm(n, mean = mu_foot_traffic, sd = 10)
+  
   # Make a Linear Predictor 
   revenue_baseline <- baseline_daily_revenue + bakery_revenue_sd * rnorm(num_bakeries, mean = 0, sd = 1)
   daily_revenue_mu <- revenue_baseline[bakeries_id] 
