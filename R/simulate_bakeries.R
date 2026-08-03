@@ -164,11 +164,11 @@ simulate_bakeries <- function(
   
   # Make a Linear Predictor 
   revenue_baseline <- baseline_daily_revenue + bakery_revenue_sd * rnorm(num_bakeries, mean = 0, sd = 1)
-  daily_revenue_mu <- revenue_baseline[bakeries_id] 
+  daily_revenue_mu <- (revenue_baseline[bakeries_id] 
     + beta_temp * temperature_c
     + beta_trafic  * foot_traffic 
     + beta_weekend  * is_weekend
-  
+  )
   # Sample from normal Distribution 
   daily_revenue <- rnorm(n, mean = daily_revenue_mu, sd = daily_revenue_sd)
 
