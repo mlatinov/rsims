@@ -168,7 +168,7 @@ simulate_bakeries <- function(
     + beta_temp * temperature_c
     + beta_trafic  * foot_traffic 
     + beta_weekend  * is_weekend
-
+  
   # Sample from normal Distribution 
   daily_revenue <- rnorm(n, mean = daily_revenue_mu, sd = daily_revenue_sd)
 
