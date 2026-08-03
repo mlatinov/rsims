@@ -184,7 +184,7 @@ simulate_libraries <- function(
   held_book        <- rpois(n, lambda = held_book_lambda)
 
   # Simulate the Book loans Counts 
-  baseline_book_loans <- mean_book_loans + sigma_book_count * rnorm(num_libries, mean = 0, sd = 1)
+  baseline_book_loans <- mean_book_loans + sigma_book_count * rnorm(num_libraries, mean = 0, sd = 1)
 
   # Linear preditor 
   lambda <- exp(
