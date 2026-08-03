@@ -200,6 +200,7 @@ simulate_libraries <- function(
 
   # Return the Simulated Data 
   sim_data <- data.frame(
+    library_id        = library_id,
     is_school_holiday = is_school_holiday,
     rain_mm           = rain_mm,
     held_book         = held_book,
